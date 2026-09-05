@@ -3,6 +3,31 @@
  * Manages the chord grid, transport, and notation display.
  */
 
+const mixerDefaults = {
+  solo:   { active: true, mute: false, solo: false, volume: 80 },
+  bass:   { active: true, mute: false, solo: false, volume: 80 },
+  rhythm: { active: true, mute: false, solo: false, volume: 80 },
+  drums:  { active: true, mute: false, solo: false, volume: 80 },
+};
+
+function cloneMixerDefaults() {
+  return Object.fromEntries(Object.entries(mixerDefaults).map(([part, strip]) => [part, { ...strip }]));
+}
+
+function normalizeMixerSettings(mixer) {
+  const normalized = cloneMixerDefaults();
+  for (const part of Object.keys(normalized)) {
+    const raw = mixer && mixer[part];
+    if (typeof raw === "number") {
+      normalized[part].volume = Math.round(Math.max(0, Math.min(100, raw <= 1 ? raw * 100 : raw)));
+    } else if (raw && typeof raw === "object") {
+      normalized[part] = { ...normalized[part], ...raw };
+      normalized[part].volume = Math.round(Math.max(0, Math.min(100, Number(normalized[part].volume) || 0)));
+    }
+  }
+  return normalized;
+}
+
 const state = {
   songId:      null,
   measures:    8,          // default grid size
@@ -63,6 +88,7 @@ const songTempo  = document.getElementById("song-tempo");
 const songStyle  = document.getElementById("song-style");
 const songKey    = document.getElementById("song-key");
 const songGroove = document.getElementById("song-groove");
+const audioMode = document.getElementById("audio-mode");
 const scaleFocus = document.getElementById("scale-focus");
 const rmsPhrasing = document.getElementById("rms-phrasing");
 const chorusCount = document.getElementById("chorus-count");
@@ -73,10 +99,9 @@ const scoreView = document.getElementById("score-view");
 const writtenFor = document.getElementById("written-for");
 const measureCount = document.getElementById("measure-count");
 
-const mixerDefaults = { solo: 1, bass: 1, rhythm: 1, drums: 1 };
 state.settings = { groove: "auto", scale_focus: false, rms_phrasing: false,
   choruses: 1, melodic_temperature: 35, view: "full", transposition: "concert",
-  mixer: { ...mixerDefaults } };
+  audio_mode: "current", mixer: cloneMixerDefaults() };
 
 
 // ── Grid rendering ──────────────────────────────────────────────────────────
@@ -278,6 +303,7 @@ function currentProjectPayload() {
     melodic_temperature: Number(melodicTemperature.value),
     measures: state.measures,
     mixer: state.settings.mixer,
+    audio_mode: state.settings.audio_mode,
     chords: buildChordPayload(),
     view: scoreView.value,
     transposition: writtenFor.value,
@@ -303,7 +329,7 @@ async function createSongFromProject(project) {
   state.measures = Number(song.measures) || 12;
   state.chords = {};
   state.invalidChords = {};
-  state.settings.mixer = { ...mixerDefaults };
+  state.settings.mixer = cloneMixerDefaults();
   for (const chord of chords) {
     state.chords[`${chord.measure}-${chord.beat}`] = chord.symbol;
   }
@@ -337,7 +363,7 @@ async function loadSong(songId) {
   melodicTemperature.value = data.melodic_temperature ?? 35;
   melodicTemperatureLabel.textContent = melodicTemperature.value;
   measureCount.value = data.measures || 12;
-  state.settings.mixer = data.mixer || { ...mixerDefaults };
+  state.settings.mixer = normalizeMixerSettings(data.mixer);
 
   // Determine grid size from chords
   const measures = data.chords.map(c => c.measure);
@@ -374,6 +400,7 @@ async function renderAndPlay() {
     view: scoreView.value,
     transposition: writtenFor.value,
     mixer: state.settings.mixer,
+    audio_mode: state.settings.audio_mode,
   };
 
   try {
@@ -452,6 +479,14 @@ function displaySVG(urls) {
       return `<img class="score-page" src="${url}${separator}t=${cacheBust}" alt="Score notation, page ${index + 1}">`;
     })
     .join("");
+}
+
+async function prepareSoundFont() {
+  const status = await apiGet("/api/audio/soundfont");
+  if (status.available) return true;
+  if (!confirm("SoundFont mode needs to download the open-source GeneralUser GS bank (~30 MB). Download it now?")) return false;
+  await apiPost("/api/audio/soundfont", { consent: true });
+  return true;
 }
 
 
@@ -547,6 +582,19 @@ songGroove.addEventListener("change", () => { state.settings.groove = songGroove
 btnRegenerate.addEventListener("click", renderAndPlay);
 scoreView.addEventListener("change", () => { if (state.songId && state.audioEl) renderAndPlay(); });
 writtenFor.addEventListener("change", () => { if (state.songId && state.audioEl) renderAndPlay(); });
+audioMode.addEventListener("change", async () => {
+  if (audioMode.value === "soundfont") {
+    try {
+      if (!await prepareSoundFont()) { audioMode.value = "current"; return; }
+    } catch (err) {
+      audioMode.value = "current";
+      setStatus(`SoundFont setup failed: ${err.message}`);
+      return;
+    }
+  }
+  state.settings.audio_mode = audioMode.value;
+  if (state.songId && state.audioEl) renderAndPlay();
+});
 
 function renderMixer() {
   const names = { solo: "Solo", bass: "Bass", rhythm: "Rhythm", drums: "Drums" };
@@ -554,10 +602,13 @@ function renderMixer() {
   for (const [part, name] of Object.entries(names)) {
     const row = document.createElement("label");
     row.className = "mixer-strip";
-    row.innerHTML = `<span>${name}</span><input type="range" min="0" max="1" step="0.01" value="${state.settings.mixer[part] ?? 1}" aria-label="${name} level">`;
+    const strip = state.settings.mixer[part] || mixerDefaults[part];
+    row.innerHTML = `<span>${name}</span><div class="mixer-fader-well"><input class="mixer-fader" type="range" min="0" max="100" step="1" value="${strip.volume}" aria-label="${name} level"></div><output class="mixer-value">${strip.volume}%</output>`;
     row.querySelector("input").addEventListener("input", event => {
-      state.settings.mixer[part] = Number(event.target.value);
+      state.settings.mixer[part].volume = Number(event.target.value);
+      row.querySelector(".mixer-value").textContent = `${event.target.value}%`;
       scheduleMixerSave();
+      scheduleMixerRender();
     });
     mixerStrips.appendChild(row);
   }
@@ -574,6 +625,15 @@ function scheduleMixerSave() {
       setStatus(`Mixer save failed: ${err.message}`);
     }
   }, 500);
+}
+
+let mixerRenderTimer = null;
+function scheduleMixerRender() {
+  if (!state.songId || !state.audioEl) return;
+  clearTimeout(mixerRenderTimer);
+  mixerRenderTimer = setTimeout(() => {
+    renderAndPlay().catch(err => setStatus(`Mixer render failed: ${err.message}`));
+  }, 300);
 }
 
 btnMixer.addEventListener("click", () => { renderMixer(); mixerPanel.classList.toggle("hidden"); });

@@ -198,3 +198,20 @@ def test_mixer_defaults_to_null_until_saved(client):
     client.put(f"/api/songs/{song_id}", json={"mixer": None})
     data = client.get(f"/api/songs/{song_id}").get_json()
     assert data["mixer"] is None
+
+
+def test_mixer_ui_uses_backend_volume_scale_and_rerenders_current_audio():
+    source = open("static/js/app.js", encoding="utf-8").read()
+
+    assert 'class="mixer-fader" type="range" min="0" max="100" step="1"' in source
+    assert "state.settings.mixer[part].volume = Number(event.target.value);" in source
+    assert "row.querySelector(\".mixer-value\").textContent" in source
+    assert "scheduleMixerRender();" in source
+    assert 'setTimeout(() => {\n    renderAndPlay().catch' in source
+
+
+def test_mixer_panel_contains_vertical_fader_styles():
+    source = open("static/css/style.css", encoding="utf-8").read()
+    assert ".mixer-panel.hidden { display: none; }" in source
+    assert ".mixer-fader {" in source
+    assert "writing-mode: vertical-lr;" in source

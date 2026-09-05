@@ -23,6 +23,19 @@ DEFAULT_SOUNDFONT_PATHS = [
     "/opt/homebrew/share/sounds/sf2/FluidR3_GM.sf2",
 ]
 
+# Managed open-source bank used by the optional SoundFont/wavetable mode.
+# It is downloaded only after the user confirms in the application.
+SOUNDFONT_DOWNLOAD_URL = os.environ.get(
+    "SOUNDFONT_DOWNLOAD_URL",
+    "https://github.com/mrbumpy409/GeneralUser-GS/raw/main/GeneralUser-GS.sf2",
+)
+MANAGED_SOUNDFONT_PATH = Path(
+    os.environ.get(
+        "MANAGED_SOUNDFONT_PATH",
+        BASE_DIR / "assets" / "soundfonts" / "GeneralUser-GS.sf2",
+    )
+).resolve()
+
 _configured_soundfont = os.environ.get("SOUNDFONT_PATH")
 SOUNDFONT_PATH = (
     _configured_soundfont

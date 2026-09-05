@@ -18,7 +18,7 @@ from music.chord_parser import validate_chord_symbol
 from music.midi_builder import MIXER_TRACKS, build_arrangement, normalize_mixer, stem_mixer, write_midi
 from music.groove import normalize_groove, normalize_style
 from music.key_utils import TRANSPOSING_INSTRUMENTS, normalize_key, normalize_transposition
-from render.audio import render_audio
+from render.audio import download_soundfont, managed_soundfont_available, normalize_audio_mode, render_audio
 from render.notation import build_lilypond_source_from_arrangement, render_pdf, render_svgs
 from render.preflight import check_dependencies
 from render.export_names import export_basename, unique_path
@@ -90,6 +90,21 @@ def index():
 @app.route("/api/health", methods=["GET"])
 def api_health():
     return jsonify(check_dependencies())
+
+
+@app.route("/api/audio/soundfont", methods=["GET", "POST"])
+def api_audio_soundfont():
+    """Report or install the managed SoundFont after explicit user consent."""
+    if request.method == "GET":
+        return jsonify({"available": managed_soundfont_available()})
+    data = request.get_json(silent=True) or {}
+    if data.get("consent") is not True:
+        return jsonify({"error": "SoundFont download requires explicit consent."}), 403
+    try:
+        path = download_soundfont()
+        return jsonify({"ok": True, "available": True, "path": path})
+    except Exception as exc:
+        return jsonify({"error": f"Could not download SoundFont: {exc}"}), 502
 
 
 @app.route("/api/providers", methods=["GET"])
@@ -297,7 +312,9 @@ def api_render(song_id):
         score_stem = unique_path(render_dir, export_base, ".ly").stem
 
         midi_path = write_midi(arrangement, tempo=tempo, output_path=midi_target, mixer=mixer)
-        audio = render_audio(midi_path, wav_path=wav_target, mp3_path=mp3_target)
+        audio_mode = normalize_audio_mode(data.get("audio_mode"))
+        audio_kwargs = {"audio_mode": audio_mode} if audio_mode != "current" else {}
+        audio = render_audio(midi_path, wav_path=wav_target, mp3_path=mp3_target, **audio_kwargs)
 
         # Optional per-part stems: rendered at full volume so the browser can
         # mix them live with Web Audio gain nodes instead of re-rendering.
@@ -314,6 +331,7 @@ def api_render(song_id):
                     stem_midi,
                     wav_path=unique_path(render_dir, stem_base, ".wav"),
                     mp3_path=unique_path(render_dir, stem_base, ".mp3"),
+                    **audio_kwargs,
                 )
                 stem_urls[part] = export_url(stem_audio["mp3"])
         ly_source = build_lilypond_source_from_arrangement(
@@ -332,6 +350,7 @@ def api_render(song_id):
         return jsonify({
             "render_id": render_id,
             "render_key": render_key,
+            "audio_mode": audio_mode,
             "stem_urls": stem_urls or None,
             "mp3_url": export_url(audio["mp3"]),
             "midi_url": export_url(midi_path),
@@ -457,6 +476,7 @@ def api_export_all_formats():
     scale_focus = bool(data.get("scale_focus", False))
     rms_phrasing = bool(data.get("rms_phrasing", False))
     mixer = data.get("mixer") if isinstance(data.get("mixer"), dict) else None
+    audio_mode = normalize_audio_mode(data.get("audio_mode"))
     view = str(data.get("view", "full")).lower()
     if view not in {"full", "solo", "bass", "rhythm", "drums"}:
         view = "full"
@@ -480,7 +500,8 @@ def api_export_all_formats():
             measures=measures,
         )
         midi_path = Path(write_midi(arrangement, tempo=clamp_tempo(song["tempo"]), output_path=render_dir / f"{export_base}.mid", mixer=mixer))
-        audio = render_audio(midi_path, wav_path=render_dir / f"{export_base}.wav", mp3_path=render_dir / f"{export_base}.mp3")
+        audio_kwargs = {"audio_mode": audio_mode} if audio_mode != "current" else {}
+        audio = render_audio(midi_path, wav_path=render_dir / f"{export_base}.wav", mp3_path=render_dir / f"{export_base}.mp3", **audio_kwargs)
         ly_source = build_lilypond_source_from_arrangement(
             arrangement,
             clamp_tempo(song["tempo"]),

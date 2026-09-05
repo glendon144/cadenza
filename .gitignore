@@ -9,6 +9,7 @@ env/
 # Local runtime state and generated render output
 chordcraft.db
 exports/
+assets/soundfonts/*.sf2
 
 # Local environment/configuration
 .env
