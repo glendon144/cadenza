@@ -377,6 +377,37 @@ def api_export_project():
     return Response(text, mimetype="application/json", headers={"Content-Disposition": f'attachment; filename="{filename}"'})
 
 
+@app.route("/api/project/export-musicxml", methods=["POST"])
+def api_export_musicxml():
+    """Export the current ChordCraft project as MusicXML for BIAB import."""
+    data = request.get_json(silent=True) or {}
+    song = {
+        "title": data.get("title", "Untitled"),
+        "tempo": data.get("tempo", DEFAULT_TEMPO),
+        "key_sig": normalize_key(data.get("key_sig", "C")),
+        "style": normalize_style(data.get("style", DEFAULT_STYLE)),
+        "groove": normalize_groove(data.get("groove", "auto"), data.get("style", DEFAULT_STYLE)),
+    }
+    valid, invalid = validate_chord_cells(data.get("chords", []))
+    if invalid:
+        return jsonify({"error": "Some chords could not be parsed.", "invalid_chords": invalid}), 400
+    try:
+        measures = max(1, min(240, int(data.get("measures", 12))))
+    except (TypeError, ValueError):
+        measures = 12
+
+    try:
+        xml_str = json_to_musicxml({"song": {**song, "measures": measures}, "chords": valid})
+        filename = export_basename(song["title"], song["style"], song["groove"]) + ".musicxml"
+        return Response(
+            xml_str,
+            mimetype="application/vnd.recordare.musicxml+xml",
+            headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+        )
+    except Exception as exc:
+        return jsonify({"error": f"Could not export MusicXML: {exc}"}), 400
+
+
 @app.route("/api/project/export-all", methods=["POST"])
 def api_export_all_formats():
     """Render the current project and return a zip with every useful format.

@@ -133,6 +133,13 @@ def json_to_musicxml(project: Dict[str, Any], output_path: str | Path | None = N
             if root_alter is not None:
                 root_alter_el = ET.SubElement(root_el, "root-alter")
                 root_alter_el.text = str(root_alter)
+
+            # Keep split-measure chords at their grid beat.  BIAB and other
+            # MusicXML readers use this offset to reconstruct the chord chart.
+            beat = int(chord.get("beat", 0) or 0)
+            if beat:
+                offset_el = ET.SubElement(harmony, "offset")
+                offset_el.text = str(beat * 4)
             
             # Kind
             kind_el = ET.SubElement(harmony, "kind")

@@ -39,6 +39,7 @@ const mixerStrips = document.getElementById("mixer-strips");
 const btnExportMidi = document.getElementById("btn-export-midi");
 const btnExportMp3  = document.getElementById("btn-export-mp3");
 const btnExportPdf  = document.getElementById("btn-export-pdf");
+const btnExportMusicxml = document.getElementById("btn-export-musicxml");
 const btnExportProject = document.getElementById("btn-export-project");
 const btnExportAll = document.getElementById("btn-export-all");
 const btnImportProject = document.getElementById("btn-import-project");
@@ -601,6 +602,21 @@ btnExportPdf.addEventListener("click", () => {
   if (state.pdfUrl)  downloadFile(state.pdfUrl,  "chordcraft.pdf");
   else alert("Render the song first (press Play).");
 });
+
+if (btnExportMusicxml) {
+  btnExportMusicxml.addEventListener("click", async () => {
+    try {
+      await saveSong();
+      const res = await fetch("/api/project/export-musicxml", {
+        method: "POST",
+        headers: csrfHeaders({ "Content-Type": "application/json" }),
+        body: JSON.stringify(currentProjectPayload()),
+      });
+      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || "Could not export MusicXML.");
+      downloadBlob(await res.blob(), filenameFromDisposition(res.headers.get("Content-Disposition"), "chordcraft.musicxml"));
+    } catch (err) { setStatus(`BIAB export failed: ${err.message}`); }
+  });
+}
 
 function downloadFile(url, filename) {
   const a    = document.createElement("a");
