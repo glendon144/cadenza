@@ -208,6 +208,10 @@ def test_mixer_ui_uses_backend_volume_scale_and_rerenders_current_audio():
     assert "row.querySelector(\".mixer-value\").textContent" in source
     assert "scheduleMixerRender();" in source
     assert 'setTimeout(() => {\n    renderAndPlay().catch' in source
+    assert "stems: true" in source
+    assert "createMediaElementSource" in source
+    assert "gain.gain.value = mixerGainFor(part);" in source
+    assert "applyMixerToAudio();" in source
 
 
 def test_mixer_panel_contains_vertical_fader_styles():

@@ -37,6 +37,9 @@ const state = {
   mp3Url:      null,
   midiUrl:     null,
   pdfUrl:      null,
+  stemAudio:   {},
+  stemGains:   {},
+  audioContext: null,
   invalidChords: {},
 };
 
@@ -401,6 +404,7 @@ async function renderAndPlay() {
     transposition: writtenFor.value,
     mixer: state.settings.mixer,
     audio_mode: state.settings.audio_mode,
+    stems: true,
   };
 
   try {
@@ -428,8 +432,10 @@ async function renderAndPlay() {
       : result.svg_url;
     displaySVG(scorePages);
 
-    // Play audio
-    playAudio(state.mp3Url);
+    // Prefer synchronized per-track stems so mixer changes can be applied
+    // immediately in the browser. The mixed MP3 remains a compatibility fallback.
+    if (result.stem_urls) playStemMix(result.stem_urls);
+    else playAudio(state.mp3Url);
 
   } catch (err) {
     setStatus(`Network error: ${err.message}`);
@@ -439,6 +445,7 @@ async function renderAndPlay() {
 }
 
 function playAudio(url) {
+  stopStemMix();
   if (state.audioEl) {
     state.audioEl.pause();
   }
@@ -460,6 +467,59 @@ function playAudio(url) {
       setStatus(`▶ ${formatTime(state.audioEl.currentTime)} / ${formatTime(state.audioEl.duration)}`);
     }
   });
+}
+
+function stopStemMix() {
+  for (const audio of Object.values(state.stemAudio)) audio.pause();
+  state.stemAudio = {};
+  state.stemGains = {};
+}
+
+function mixerGainFor(part) {
+  const strip = state.settings.mixer[part];
+  return strip && strip.active !== false && !strip.mute ? Number(strip.volume) / 100 : 0;
+}
+
+function applyMixerToAudio() {
+  for (const [part, gain] of Object.entries(state.stemGains)) {
+    gain.gain.value = mixerGainFor(part);
+  }
+}
+
+function playStemMix(stemUrls) {
+  if (!window.AudioContext && !window.webkitAudioContext) {
+    playAudio(state.mp3Url);
+    return;
+  }
+  if (state.audioEl) {
+    state.audioEl.pause();
+    state.audioEl = null;
+  }
+  stopStemMix();
+  const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+  state.audioContext = state.audioContext || new AudioContextClass();
+  for (const [part, url] of Object.entries(stemUrls)) {
+    const audio = new Audio(url + (url.includes("?") ? "&" : "?") + "t=" + Date.now());
+    const source = state.audioContext.createMediaElementSource(audio);
+    const gain = state.audioContext.createGain();
+    source.connect(gain).connect(state.audioContext.destination);
+    state.stemAudio[part] = audio;
+    state.stemGains[part] = gain;
+    audio.addEventListener("ended", () => {
+      if (Object.values(state.stemAudio).every(item => item.ended)) {
+        state.isPlaying = false;
+        btnPlay.textContent = "▶";
+        setStatus("Playback finished");
+      }
+    });
+  }
+  applyMixerToAudio();
+  state.audioContext.resume().then(() => Promise.all(Object.values(state.stemAudio).map(audio => audio.play())))
+    .then(() => {
+      state.isPlaying = true;
+      btnPlay.textContent = "⏸";
+    })
+    .catch(err => setStatus(`Playback error: ${err.message}`));
 }
 
 function formatTime(secs) {
@@ -493,26 +553,35 @@ async function prepareSoundFont() {
 // ── Transport controls ───────────────────────────────────────────────────────
 
 btnPlay.addEventListener("click", () => {
-  if (!state.audioEl || state.audioEl.ended || state.audioEl.src === "") {
+  const hasStemPlayback = Object.keys(state.stemAudio).length > 0;
+  if ((!state.audioEl || state.audioEl.ended || state.audioEl.src === "") && !hasStemPlayback) {
     renderAndPlay();
     return;
   }
   if (state.isPlaying) {
-    state.audioEl.pause();
+    if (state.audioEl) state.audioEl.pause();
+    for (const audio of Object.values(state.stemAudio)) audio.pause();
     state.isPlaying = false;
     btnPlay.textContent = "▶";
     setStatus("Paused");
   } else {
-    state.audioEl.play();
+    if (state.audioEl) state.audioEl.play();
+    else for (const audio of Object.values(state.stemAudio)) audio.play();
     state.isPlaying = true;
     btnPlay.textContent = "⏸";
   }
 });
 
 btnStop.addEventListener("click", () => {
+  const hadStemPlayback = Object.keys(state.stemAudio).length > 0;
+  stopStemMix();
   if (state.audioEl) {
     state.audioEl.pause();
     state.audioEl.currentTime = 0;
+    state.isPlaying = false;
+    btnPlay.textContent = "▶";
+    setStatus("Stopped");
+  } else if (hadStemPlayback) {
     state.isPlaying = false;
     btnPlay.textContent = "▶";
     setStatus("Stopped");
@@ -522,6 +591,8 @@ btnStop.addEventListener("click", () => {
 btnRewind.addEventListener("click", () => {
   if (state.audioEl) {
     state.audioEl.currentTime = Math.max(0, state.audioEl.currentTime - 10);
+  } else {
+    for (const audio of Object.values(state.stemAudio)) audio.currentTime = Math.max(0, audio.currentTime - 10);
   }
 });
 
@@ -531,6 +602,8 @@ btnForward.addEventListener("click", () => {
       state.audioEl.duration || 0,
       state.audioEl.currentTime + 10
     );
+  } else {
+    for (const audio of Object.values(state.stemAudio)) audio.currentTime += 10;
   }
 });
 
@@ -607,6 +680,7 @@ function renderMixer() {
     row.querySelector("input").addEventListener("input", event => {
       state.settings.mixer[part].volume = Number(event.target.value);
       row.querySelector(".mixer-value").textContent = `${event.target.value}%`;
+      applyMixerToAudio();
       scheduleMixerSave();
       scheduleMixerRender();
     });
