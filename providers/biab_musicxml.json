@@ -1,0 +1,57 @@
+{
+  "provider_id": "biab_musicxml",
+  "display_name": "Band-in-a-Box via MusicXML",
+  "version": 1,
+  "description": "BIAB -> MusicXML -> ChordCraft workflow. Preserves chords, key, tempo. Ideal for bringing BIAB RealTracks charts into ChordCraft for editing and then re-export to Suno/Udio.",
+  "prompt_template": "[BIAB Import] {title} Style {style} {groove} Key {key_sig} {tempo}BPM. Original chords: {chord_summary}. {philosophy}",
+  "field_limits": {
+    "prompt_max_chars": 2000,
+    "style_map": {
+      "jazz_swing": "Jazz Swing",
+      "bossa": "Bossa Nova",
+      "ballad": "Ballad",
+      "funk": "Funk",
+      "default": "{style}"
+    },
+    "groove_map": {
+      "auto": "auto",
+      "straight": "straight",
+      "swing": "swing",
+      "default": "{groove}"
+    }
+  },
+  "philosophy_rules": {
+    "scale_focus": "preserve original scale focus from BIAB",
+    "rms_phrasing": "preserve phrasing",
+    "melodic_temperature": {
+      "low": "conservative",
+      "medium": "medium",
+      "high": "high"
+    }
+  },
+  "export_files": [
+    "musicxml",
+    "midi",
+    "chordcraft.json",
+    "pdf"
+  ],
+  "restraint_rules": {
+    "max_tempo": 300,
+    "min_tempo": 30
+  },
+  "import_capabilities": {
+    "formats": [
+      "musicxml",
+      "mxl",
+      "xml"
+    ],
+    "extracts": [
+      "chords",
+      "key_sig",
+      "tempo",
+      "title",
+      "measures"
+    ],
+    "source": "BIAB"
+  }
+}

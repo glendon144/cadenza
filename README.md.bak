@@ -1,0 +1,72 @@
+# ChordCraft upgraded
+
+ChordCraft is a small Flask app for entering chord symbols, generating a simple arrangement, rendering MIDI/MP3 audio, and producing LilyPond notation.
+
+This upgraded version keeps the original app's spirit but tightens the prototype:
+
+- music code now lives in `music/` instead of `database/music/`
+- SQLite foreign-key cascades are enabled per connection
+- render outputs are unique per render instead of overwriting `output.mp3` and `score.pdf`
+- `/exports/...` is path-safe
+- jazz shell voicings prioritize 3rds and 7ths
+- chord parser accepts common symbols such as `C-7`, `CΔ7`, `Bm7b5`, and `G7alt`
+- render dependency preflight is available at `/api/health`
+- generated files, AppleDouble metadata, cache files, and live databases are excluded
+- the style dropdown now affects the render immediately, even if you have not pressed Save
+- Bossa Nova and Samba now use Latin bass patterns and clave-aware comping
+- Bossa Nova defaults to 3-2 clave; Samba defaults to 2-3 clave; either can be overridden
+
+## Install
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+```
+
+System tools are also needed for full rendering:
+
+```bash
+# Debian/Ubuntu example
+sudo apt install fluidsynth fluid-soundfont-gm ffmpeg lilypond
+```
+
+For macOS, install FluidSynth, ffmpeg, LilyPond, and set `SOUNDFONT_PATH` if your soundfont is not in one of the default paths.
+
+## Run
+
+```bash
+python app.py
+```
+
+Then open http://127.0.0.1:5000/ .
+
+## Useful environment variables
+
+- `CHORDCRAFT_DATABASE=/path/to/chordcraft.db`
+- `CHORDCRAFT_EXPORT_DIR=/path/to/exports`
+- `SOUNDFONT_PATH=/path/to/file.sf2`
+- `FLUIDSYNTH_BIN=fluidsynth`
+- `FFMPEG_BIN=ffmpeg`
+- `LILYPOND_BIN=lilypond`
+
+## Latin style behavior
+
+The Bossa Nova and Samba styles are no longer just labels.  Bossa/Samba bass uses a root-root, fifth-fifth dotted-quarter/eighth pattern inside each measure.  The accompaniment uses a two-measure clave-aware comping grid.  Bossa Nova defaults to 3-2 clave, while Samba defaults to 2-3 clave.
+
+## Tests
+
+```bash
+pytest
+```
+
+## v4 key-signature and transposition behavior
+
+The key dropdown is now active.
+
+- C major prints no key signature.
+- Changing the key with chords already in the grid transposes the chord roots and slash bass notes by the interval between the old and new keys. For example, changing C to F turns `Cmaj7` into `Fmaj7` and moves the rendered MIDI/notation up a perfect fourth.
+- LilyPond output receives the correct major key signature, and note spelling now prefers flats in flat keys.
+- If the grid is empty, ChordCraft supplies a diatonic seventh-chord starter progression in the selected key using the major-scale chord qualities: Imaj7, iim7, iiim7, IVmaj7, V7, vim7, viim7b5.
+
+The pure-Python regression tests include key transposition, flat-key spelling, and F-major diatonic seventh chords.

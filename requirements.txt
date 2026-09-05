@@ -1,0 +1,6 @@
+Flask>=3.0
+midiutil>=1.2.1
+music21>=9.1
+pretty_midi>=0.2.10
+pydub>=0.25.1
+pytest>=8.0

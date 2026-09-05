@@ -1,0 +1,391 @@
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: 'Segoe UI', system-ui, sans-serif;
+  background: #1a1a2e;
+  color: #e0e0e0;
+  min-height: 100vh;
+}
+
+header {
+  background: #16213e;
+  padding: 1rem 2rem;
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+  flex-wrap: wrap;
+  border-bottom: 2px solid #0f3460;
+}
+
+header h1 { font-size: 1.6rem; color: #e94560; letter-spacing: .04em; }
+
+#song-controls {
+  display: flex;
+  gap: .6rem;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+input[type="text"], input[type="number"], select {
+  background: #0f3460;
+  border: 1px solid #53596e;
+  color: #e0e0e0;
+  padding: .4rem .7rem;
+  border-radius: 5px;
+  font-size: .9rem;
+}
+
+.btn {
+  background: #0f3460;
+  color: #e0e0e0;
+  border: 1px solid #53596e;
+  padding: .4rem .9rem;
+  border-radius: 5px;
+  cursor: pointer;
+  font-size: .9rem;
+  transition: background .2s;
+}
+.btn:hover { background: #e94560; border-color: #e94560; }
+.btn-sm    { padding: .25rem .6rem; font-size: .8rem; }
+.btn-danger:hover { background: #c0392b; border-color: #c0392b; }
+
+section {
+  max-width: 1100px;
+  margin: 1.5rem auto;
+  padding: 0 1.5rem;
+}
+section h2 {
+  font-size: 1.1rem;
+  color: #aaa;
+  margin-bottom: .75rem;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+}
+.hint { font-size: .75rem; color: #666; text-transform: none; }
+
+/* Chord Grid */
+#chord-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: .5rem;
+  margin-bottom: .75rem;
+}
+
+.chord-cell {
+  background: #16213e;
+  border: 2px solid #0f3460;
+  border-radius: 8px;
+  padding: .5rem;
+  text-align: center;
+  cursor: pointer;
+  transition: border-color .15s;
+  position: relative;
+}
+.chord-cell:hover         { border-color: #e94560; }
+.chord-cell.active        { border-color: #e94560; background: #1c2e50; }
+.chord-cell.invalid       { border-color: #ffb84d; background: #362216; }
+.chord-cell .measure-num  { font-size: .65rem; color: #555; position: absolute; top: 3px; left: 6px; }
+
+.chord-cell input {
+  width: 100%;
+  background: transparent;
+  border: none;
+  color: #e0e0e0;
+  font-size: 1.3rem;
+  font-weight: bold;
+  text-align: center;
+  outline: none;
+  caret-color: #e94560;
+}
+.chord-cell input.invalid { color: #ffcf80; }
+.chord-cell input.invalid::selection { background: #7a3f00; }
+
+#grid-actions { display: flex; gap: .5rem; }
+
+/* Transport */
+#transport {
+  display: flex;
+  align-items: center;
+  gap: .75rem;
+  flex-wrap: wrap;
+}
+
+.transport-btn {
+  background: #16213e;
+  border: 2px solid #0f3460;
+  color: #e0e0e0;
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  font-size: 1.2rem;
+  cursor: pointer;
+  transition: all .15s;
+}
+.transport-btn:hover   { background: #0f3460; border-color: #e94560; }
+.transport-btn.primary { background: #e94560; border-color: #e94560; }
+.transport-btn.primary:hover { background: #c0392b; }
+
+#playback-status { color: #aaa; font-size: .85rem; }
+
+/* Notation */
+#notation-container {
+  background: #fff;
+  border-radius: 8px;
+  min-height: 200px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: auto;
+}
+#notation-container .placeholder { color: #aaa; font-style: italic; }
+#notation-container img, #notation-container svg { max-width: 100%; }
+
+/* Export */
+#export-section { display: flex; gap: .75rem; flex-wrap: wrap; }
+
+/* Library */
+#song-list { list-style: none; display: flex; flex-direction: column; gap: .4rem; }
+.song-item {
+  background: #16213e;
+  border: 1px solid #0f3460;
+  border-radius: 6px;
+  padding: .5rem 1rem;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+.song-title { font-weight: bold; flex: 1; }
+.song-meta  { color: #888; font-size: .8rem; }
+
+.score-page {
+  display: block;
+  max-width: 100%;
+  padding: 1rem;
+  margin: 0 auto 1rem auto;
+  background: #fff;
+}
+
+/* Multi-page LilyPond SVG output should read top-to-bottom, not as a hidden
+   sideways strip. This especially matters for bossa/samba, where the comping
+   notation may wrap earlier than a sparse jazz lead sheet. */
+#notation-container {
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: flex-start;
+}
+
+.beat-inputs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: .35rem;
+  margin-top: .35rem;
+}
+
+.beat-slot {
+  display: flex;
+  flex-direction: column;
+  gap: .15rem;
+}
+
+.beat-label {
+  color: #888;
+  font-size: .65rem;
+  font-weight: 600;
+}
+
+.chord-cell.double-chord-cell input {
+  font-size: 1.05rem;
+  background: rgba(15, 52, 96, .35);
+  border-radius: 4px;
+  padding: .25rem .15rem;
+}
+
+.measure-count-control {
+  display: inline-flex;
+  align-items: center;
+  gap: .35rem;
+  color: #aaa;
+  font-size: .85rem;
+}
+
+#measure-count {
+  width: 5rem;
+}
+
+.chorus-control {
+  display: inline-flex;
+  align-items: center;
+  gap: .35rem;
+  color: #ddd;
+  font-size: .9rem;
+}
+
+#chorus-count { width: 8rem; }
+#chorus-count-label {
+  min-width: 1.5rem;
+  text-align: center;
+  font-weight: 700;
+}
+
+.melody-control {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  white-space: nowrap;
+}
+
+.melody-control input[type="range"] {
+  width: 110px;
+}
+
+/* ── Mixer panel ─────────────────────────────────────────────────────────────
+   Floating console-style mixer. It hovers above the page (draggable by its
+   title bar) so the staves stay fully visible and interactive behind it. */
+
+.mixer-panel {
+  position: fixed;
+  top: 110px;
+  right: 28px;
+  z-index: 1000;
+  background: linear-gradient(180deg, #20243a 0%, #171a2c 100%);
+  border: 1px solid #53596e;
+  border-radius: 10px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, .55);
+  width: max-content;
+  user-select: none;
+}
+.mixer-panel.hidden { display: none; }
+
+.mixer-titlebar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: .45rem .8rem;
+  background: #0f3460;
+  border-radius: 9px 9px 0 0;
+  cursor: grab;
+}
+.mixer-titlebar:active { cursor: grabbing; }
+.mixer-title {
+  font-size: .8rem;
+  font-weight: 700;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  color: #e0e0e0;
+}
+.mixer-close {
+  background: transparent;
+  border: none;
+  color: #aaa;
+  font-size: .9rem;
+  cursor: pointer;
+  padding: 0 .2rem;
+}
+.mixer-close:hover { color: #e94560; }
+
+.mixer-strips {
+  display: flex;
+  gap: .6rem;
+  padding: .8rem;
+}
+
+.mixer-strip {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: .4rem;
+  width: 72px;
+  padding: .6rem .4rem .5rem;
+  background: #131628;
+  border: 1px solid #2a2f4a;
+  border-radius: 8px;
+}
+.mixer-strip.strip-off { opacity: .55; }
+
+.mixer-toggle {
+  width: 52px;
+  padding: .18rem 0;
+  font-size: .62rem;
+  font-weight: 700;
+  letter-spacing: .08em;
+  border-radius: 4px;
+  border: 1px solid #53596e;
+  background: #22263c;
+  color: #8a8fa8;
+  cursor: pointer;
+  transition: all .12s;
+}
+.mixer-toggle.lit-active { background: #1d8348; border-color: #2ecc71; color: #eafff2; box-shadow: 0 0 8px rgba(46, 204, 113, .55); }
+.mixer-toggle.lit-solo   { background: #9a7d0a; border-color: #f1c40f; color: #fffbe6; box-shadow: 0 0 8px rgba(241, 196, 15, .55); }
+.mixer-toggle.lit-mute   { background: #922b21; border-color: #e74c3c; color: #ffecec; box-shadow: 0 0 8px rgba(231, 76, 60, .55); }
+
+.mixer-fader-well {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 150px;
+  padding: .3rem 0;
+  background:
+    repeating-linear-gradient(180deg, #2a2f4a 0, #2a2f4a 1px, transparent 1px, transparent 13px) center/22px 140px no-repeat,
+    #0d0f1c;
+  border-radius: 6px;
+  width: 52px;
+}
+
+.mixer-fader {
+  writing-mode: vertical-lr;
+  direction: rtl;
+  width: 26px;
+  height: 138px;
+  cursor: ns-resize;
+  accent-color: #e94560;
+}
+
+.mixer-value {
+  font-size: .68rem;
+  font-variant-numeric: tabular-nums;
+  color: #9fe8b0;
+  background: #0d0f1c;
+  border: 1px solid #2a2f4a;
+  border-radius: 3px;
+  min-width: 34px;
+  text-align: center;
+  padding: .08rem 0;
+}
+
+.mixer-label {
+  font-size: .7rem;
+  font-weight: 700;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  color: #cfd3e8;
+}
+
+.mixer-footnote {
+  padding: .35rem .8rem .55rem;
+  font-size: .65rem;
+  color: #666e8c;
+  text-align: center;
+}
+
+/* Read two chord slots inside one bar left-to-right:
+   beat 0 on the left, beat 2 / beat 3 on the right. */
+.chord-cell.double-chord-cell {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  column-gap: 0.35rem;
+  align-items: center;
+}
+
+.chord-cell.double-chord-cell .measure-num {
+  grid-column: 1 / -1;
+}
+
+.chord-cell.double-chord-cell input[data-beat="0"] {
+  grid-column: 1;
+}
+
+.chord-cell.double-chord-cell input[data-beat="2"] {
+  grid-column: 2;
+}

@@ -1,0 +1,40 @@
+{
+  "provider_id": "udio_v1",
+  "display_name": "Udio",
+  "version": 1,
+  "prompt_template": "{style} track, {groove}. {philosophy}. Key: {key_sig}, Tempo: {tempo}. Chords: {chord_summary}. Instrument focus: {instrument_hint}",
+  "field_limits": {
+    "prompt_max_chars": 800,
+    "style_map": {
+      "jazz_swing": "jazz swing, upright bass, jazz drums",
+      "bossa": "bossa nova",
+      "ballad": "emotional ballad",
+      "funk": "funk",
+      "default": "{style}"
+    },
+    "groove_map": {
+      "auto": "groove follows style",
+      "straight": "straight",
+      "swing": "swung"
+    }
+  },
+  "philosophy_rules": {
+    "scale_focus": "scale focused solo",
+    "rms_phrasing": "phrase with space",
+    "melodic_temperature": {
+      "low": "simple melody",
+      "medium": "creative melody",
+      "high": "experimental melody"
+    }
+  },
+  "export_files": [
+    "midi",
+    "wav",
+    "prompt.txt"
+  ],
+  "restraint_rules": {
+    "max_tempo": 300,
+    "min_tempo": 30,
+    "forbid_explicit_lyrics": true
+  }
+}

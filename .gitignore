@@ -1,0 +1,16 @@
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+venv/
+env/
+.DS_Store
+
+# Local runtime state and generated render output
+chordcraft.db
+exports/
+
+# Local environment/configuration
+.env
+.env.*
+!.env.example

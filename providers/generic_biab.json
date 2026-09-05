@@ -1,0 +1,22 @@
+{
+  "provider_id": "generic_biab",
+  "display_name": "Generic BIAB Compatible",
+  "version": 1,
+  "prompt_template": "{title} - Style: {style} {groove} {key_sig} {tempo}BPM {chord_summary}",
+  "field_limits": {
+    "prompt_max_chars": 2000,
+    "style_map": {
+      "default": "{style}"
+    },
+    "groove_map": {
+      "default": "{groove}"
+    }
+  },
+  "philosophy_rules": {},
+  "export_files": [
+    "midi",
+    "pdf",
+    "chordcraft.json"
+  ],
+  "restraint_rules": {}
+}

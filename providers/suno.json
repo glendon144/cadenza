@@ -1,0 +1,42 @@
+{
+  "provider_id": "suno_v4",
+  "display_name": "Suno",
+  "version": 1,
+  "prompt_template": "[{style} - {groove} groove] Key {key_sig} at {tempo} BPM. {philosophy}. Chord progression: {chord_summary}. {instrument_hint}",
+  "field_limits": {
+    "prompt_max_chars": 1000,
+    "style_map": {
+      "jazz_swing": "Jazzy swing with walking bass and brush drums",
+      "bossa": "Bossa nova gentle nylon guitar and soft percussion",
+      "ballad": "Slow ballad with piano and strings",
+      "funk": "Funky electric bass and tight drums",
+      "default": "Modern {style} style"
+    },
+    "groove_map": {
+      "auto": "auto groove",
+      "straight": "straight 8ths",
+      "swing": "swing 8ths"
+    }
+  },
+  "philosophy_rules": {
+    "scale_focus": "Stay diatonic, prioritize chord tones, avoid chromatic passing tones",
+    "rms_phrasing": "Use RMS-based phrase breathing, leave space, 2-bar call and response",
+    "melodic_temperature": {
+      "low": "Conservative melodic movement, <35",
+      "medium": "Balanced melodic invention, 35-70",
+      "high": "Adventurous melodic leaps and extensions, >70"
+    }
+  },
+  "export_files": [
+    "midi",
+    "mp3",
+    "prompt.txt",
+    "chordcraft.json"
+  ],
+  "restraint_rules": {
+    "max_tempo": 240,
+    "min_tempo": 40,
+    "forbid_explicit_lyrics": true,
+    "require_key_sig": true
+  }
+}

@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ChordCraft</title>
+  <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+
+<header>
+  <h1>🎹 ChordCraft</h1>
+  <div id="song-controls">
+    <input  id="song-title"  type="text"    placeholder="Song title"  value="Untitled">
+    <input  id="song-tempo"  type="number"  placeholder="BPM"         value="120" min="40" max="320">
+    <select id="song-style">
+      <option value="jazz">Jazz</option>
+      <option value="bossa">Bossa Nova</option>
+      <option value="samba">Samba</option>
+      <option value="pop">Pop</option>
+    </select>
+    <select id="song-groove" title="Latin clave/groove">
+      <option value="auto">Auto groove</option>
+      <option value="clave_3_2">Son 3-2 clave</option>
+      <option value="clave_2_3">Son 2-3 clave</option>
+      <option value="rumba_3_2">Rhumba 3-2 clave</option>
+      <option value="rumba_2_3">Rhumba 2-3 clave</option>
+    </select>
+    <select id="song-key">
+      <option>C</option><option>F</option><option>Bb</option><option>Eb</option>
+      <option>Ab</option><option>Db</option><option>G</option><option>D</option>
+      <option>A</option><option>E</option><option>B</option>
+    </select>
+    <label class="checkbox-control" title="Favor Aebersold-style chord-scale material for smoother horizontal lines">
+      <input id="scale-focus" type="checkbox"> Scale focus
+    </label>
+    <label class="checkbox-control" title="Playback-only phrase rubato: start phrases slightly relaxed and catch up to finish on time">
+      <input id="rms-phrasing" type="checkbox"> RMS phrasing
+    </label>
+    <label class="chorus-control" title="Repeat the whole form and generate a fresh solo for each chorus">
+      Choruses <input id="chorus-count" type="range" min="1" max="20" value="1"> <span id="chorus-count-label">1</span>
+    </label>
+    <label class="melody-control" title="Higher values favor motivic development, enclosures, and more disciplined phrase continuity">
+      Melodic temperature <input id="melodic-temperature" type="range" min="0" max="100" value="35"> <span id="melodic-temperature-label">35</span>
+    </label>
+    <select id="score-view" title="Choose which generated part to display in the chart">
+      <option value="full">Full Score</option>
+      <option value="solo">Solo Only</option>
+      <option value="bass">Bass Only</option>
+      <option value="rhythm">Rhythm Only</option>
+      <option value="drums">Drums Only</option>
+    </select>
+    <select id="written-for" title="Display the notation as written for a transposing instrument — playback stays at concert pitch">
+      <option value="concert">Concert Pitch</option>
+      <option value="bb">B&#9837; Trumpet / Clarinet</option>
+      <option value="bb_tenor">B&#9837; Tenor Sax</option>
+      <option value="eb_alto">E&#9837; Alto Sax</option>
+      <option value="eb_bari">E&#9837; Bari Sax</option>
+      <option value="f_horn">F Horn</option>
+    </select>
+    <button id="btn-new"  class="btn">New Song</button>
+    <button id="btn-save" class="btn">Save</button>
+  </div>
+</header>
+
+<!-- Chord Grid -->
+<section id="grid-section">
+  <h2>Chord Grid <span class="hint">(two cells per bar: beat 1 and beat 3)</span></h2>
+  <div id="chord-grid"></div>
+  <div id="grid-actions">
+    <button id="btn-add-measure"    class="btn btn-sm">+ Measure</button>
+    <button id="btn-remove-measure" class="btn btn-sm">− Measure</button>
+    <label class="measure-count-control">Bars
+      <input id="measure-count" type="number" min="1" max="64" value="12">
+    </label>
+    <button id="btn-update-measures" class="btn btn-sm">Update</button>
+  </div>
+</section>
+
+<!-- Transport -->
+<section id="transport">
+  <button id="btn-rewind"  class="transport-btn" title="Rewind">⏮</button>
+  <button id="btn-play"    class="transport-btn primary" title="Play/Pause">▶</button>
+  <button id="btn-regenerate" class="btn" title="Generate a fresh melody and render again">Regenerate</button>
+  <button id="btn-stop"    class="transport-btn" title="Stop">⏹</button>
+  <button id="btn-forward" class="transport-btn" title="Forward">⏭</button>
+  <button id="btn-mixer" class="btn" title="Open the mixer to balance, solo, or mute the parts">Mixer</button>
+  <span id="playback-status">Ready</span>
+</section>
+
+<!-- Mixer (floating panel; strips are built by app.js) -->
+<aside id="mixer-panel" class="mixer-panel hidden" aria-label="Mixer" role="dialog">
+  <div id="mixer-titlebar" class="mixer-titlebar">
+    <span class="mixer-title">Mixer</span>
+    <button id="mixer-close" class="mixer-close" title="Close mixer">✕</button>
+  </div>
+  <div id="mixer-strips" class="mixer-strips"></div>
+  <div class="mixer-footnote">Levels apply on the next render and to exported files.</div>
+</aside>
+
+<!-- Export -->
+<section id="export-section">
+  <button id="btn-export-midi" class="btn">Export MIDI</button>
+  <button id="btn-export-mp3"  class="btn">Export MP3</button>
+  <button id="btn-export-pdf"  class="btn">Export PDF</button>
+  <button id="btn-export-project" class="btn">Export Project</button>
+  <button id="btn-export-all" class="btn">Save All Formats</button>
+  <input id="import-file" type="file" accept=".json,.chordcraft,.mid,.midi,audio/midi" hidden>
+  <button id="btn-import-project" class="btn">Import</button>
+</section>
+
+<!-- Notation Display -->
+<section id="notation-section">
+  <h2 id="score-heading">Score</h2>
+  <div id="notation-container">
+    <p class="placeholder">Press Play to generate and display the score.</p>
+  </div>
+</section>
+
+<!-- Song Library -->
+<section id="library-section">
+  <h2>Song Library</h2>
+  <ul id="song-list">
+    {% for song in songs %}
+    <li data-id="{{ song.id }}" class="song-item">
+      <span class="song-title">{{ song.title }}</span>
+      <span class="song-meta">{{ song.style }}{% if song.groove and song.groove != "auto" %}/{{ song.groove }}{% endif %} · {{ song.tempo }} BPM</span>
+      <button class="btn btn-sm btn-load" data-id="{{ song.id }}">Load</button>
+      <button class="btn btn-sm btn-danger btn-delete" data-id="{{ song.id }}">✕</button>
+    </li>
+    {% endfor %}
+  </ul>
+</section>
+
+<script src="/static/js/app.js"></script>
+</body>
+</html>
