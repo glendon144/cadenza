@@ -400,6 +400,8 @@ async function loadSong(songId) {
 // ── Render & playback ────────────────────────────────────────────────────────
 
 async function renderAndPlay() {
+  // Resume while the originating click still supplies browser user activation.
+  unlockAudio();
   if (!state.songId) await createNewSong({ resetGrid: false });
 
   setStatus("Rendering… (this may take a few seconds)");
@@ -451,7 +453,7 @@ async function renderAndPlay() {
 
     // Prefer synchronized per-track stems so mixer changes can be applied
     // immediately in the browser. The mixed MP3 remains a compatibility fallback.
-    if (result.stem_urls) playStemMix(result.stem_urls);
+    if (result.stem_urls && Object.keys(result.stem_urls).length) playStemMix(result.stem_urls);
     else playAudio(state.mp3Url);
 
   } catch (err) {
@@ -461,16 +463,73 @@ async function renderAndPlay() {
   }
 }
 
+// Browser autoplay permission is granted by a user gesture, not microphone access.
+function unlockAudio() {
+  const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+  if (!AudioContextClass) return;
+  state.audioContext = state.audioContext || new AudioContextClass();
+  // A blocked resume can remain pending; never wait for it before rendering.
+  state.audioContext.resume().catch(() => {});
+}
+
+let playbackAttempt = 0;
+const audioPermissionDialog = document.getElementById("audio-permission-dialog");
+document.getElementById("btn-enable-audio").addEventListener("click", () => {
+  audioPermissionDialog.close();
+  startPlayback();
+});
+
+async function startPlayback() {
+  const attempt = ++playbackAttempt;
+  const players = state.audioEl ? [state.audioEl] : Object.values(state.stemAudio);
+  if (!players.length) return;
+  state.isPlaying = false;
+  btnPlay.textContent = "▶";
+  setStatus("Starting playback…");
+  let timer;
+  try {
+    // Invoke both resume and play synchronously in the click handler. Awaiting
+    // resume first loses activation in Safari and can leave playback pending.
+    const resume = !state.audioEl && state.audioContext ? state.audioContext.resume() : Promise.resolve();
+    const plays = players.map(audio => audio.play());
+    await Promise.race([
+      Promise.all([resume, ...plays]),
+      new Promise((_, reject) => {
+        timer = setTimeout(() => {
+          const blocked = !state.audioEl && state.audioContext?.state !== "running";
+          const error = new Error(blocked ? "Your browser needs a click to enable sound." : "Audio did not start. Check your connection and try Play again.");
+          error.name = blocked ? "NotAllowedError" : "TimeoutError";
+          reject(error);
+        }, 8000);
+      }),
+    ]);
+    if (attempt !== playbackAttempt) return;
+    state.isPlaying = true;
+    btnPlay.textContent = "⏸";
+    setStatus("Playing");
+  } catch (err) {
+    if (attempt !== playbackAttempt) return;
+    players.forEach(audio => audio.pause());
+    state.isPlaying = false;
+    btnPlay.textContent = "▶";
+    if (err.name === "NotAllowedError") {
+      setStatus("Audio ready — click Enable sound or Play to listen.");
+      if (!audioPermissionDialog.open) audioPermissionDialog.showModal();
+    } else {
+      setStatus(`Playback error: ${err.message}`);
+    }
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 function playAudio(url) {
   stopStemMix();
   if (state.audioEl) {
     state.audioEl.pause();
   }
   state.audioEl     = new Audio(url);
-  state.isPlaying   = true;
-  btnPlay.textContent = "⏸";
-
-  state.audioEl.play().catch(e => setStatus(`Playback error: ${e.message}`));
+  startPlayback();
 
   state.audioEl.addEventListener("ended", () => {
     state.isPlaying = false;
@@ -487,6 +546,7 @@ function playAudio(url) {
 }
 
 function stopStemMix() {
+  playbackAttempt++;
   for (const audio of Object.values(state.stemAudio)) audio.pause();
   state.stemAudio = {};
   state.stemGains = {};
@@ -522,6 +582,11 @@ function playStemMix(stemUrls) {
     source.connect(gain).connect(state.audioContext.destination);
     state.stemAudio[part] = audio;
     state.stemGains[part] = gain;
+    audio.addEventListener("timeupdate", () => {
+      if (state.isPlaying && audio === Object.values(state.stemAudio)[0]) {
+        setStatus(`▶ ${formatTime(audio.currentTime)} / ${formatTime(audio.duration || 0)}`);
+      }
+    });
     audio.addEventListener("ended", () => {
       if (Object.values(state.stemAudio).every(item => item.ended)) {
         state.isPlaying = false;
@@ -531,12 +596,7 @@ function playStemMix(stemUrls) {
     });
   }
   applyMixerToAudio();
-  state.audioContext.resume().then(() => Promise.all(Object.values(state.stemAudio).map(audio => audio.play())))
-    .then(() => {
-      state.isPlaying = true;
-      btnPlay.textContent = "⏸";
-    })
-    .catch(err => setStatus(`Playback error: ${err.message}`));
+  startPlayback();
 }
 
 function formatTime(secs) {
@@ -582,10 +642,7 @@ btnPlay.addEventListener("click", () => {
     btnPlay.textContent = "▶";
     setStatus("Paused");
   } else {
-    if (state.audioEl) state.audioEl.play();
-    else for (const audio of Object.values(state.stemAudio)) audio.play();
-    state.isPlaying = true;
-    btnPlay.textContent = "⏸";
+    startPlayback();
   }
 });
 
