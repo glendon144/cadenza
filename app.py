@@ -14,7 +14,7 @@ from database.models import (
     init_db, create_song, get_song, list_songs, update_song, delete_song,
     save_chord_grid, get_chord_grid, save_render, clamp_tempo,
 )
-from music.chord_parser import validate_chord_symbol
+from music.chord_parser import validate_chord_symbol, closest_chord_symbol
 from music.midi_builder import MIXER_TRACKS, build_arrangement, normalize_mixer, stem_mixer, write_midi
 from music.groove import normalize_groove, normalize_style
 from music.key_utils import TRANSPOSING_INSTRUMENTS, normalize_key, normalize_transposition
@@ -59,13 +59,12 @@ def validate_chord_cells(cells):
 
         ok, reason = validate_chord_symbol(symbol)
         if not ok:
-            invalid.append({"measure": measure, "beat": beat, "symbol": symbol, "message": reason or "This chord is not recognized."})
-            continue
+            symbol = closest_chord_symbol(symbol)
 
         key = (measure, beat)
         if key not in seen:
             seen.add(key)
-            valid.append({"measure": measure, "beat": beat, "symbol": symbol[:40], "duration": duration})
+            valid.append({"measure": measure, "beat": beat, "symbol": symbol, "duration": duration})
 
     return valid, invalid
 
@@ -225,7 +224,7 @@ def api_update_song(song_id):
         metadata["mixer"] = normalize_mixer(metadata["mixer"]) if isinstance(metadata["mixer"], dict) else None
     if metadata:
         update_song(song_id, **metadata)
-    return jsonify({"ok": True})
+    return jsonify({"ok": True, "chords": [dict(c) for c in get_chord_grid(song_id)]})
 
 
 @app.route("/api/songs/<int:song_id>", methods=["DELETE"])
@@ -271,7 +270,10 @@ def api_render(song_id):
     if not grid:
         return jsonify({"error": "No chords to render."}), 400
 
-    chord_list = [dict(c) for c in grid]
+    chord_list, invalid = validate_chord_cells([dict(c) for c in grid])
+    if invalid:
+        return jsonify({"error": "Invalid chord positions.", "invalid_chords": invalid}), 400
+    save_chord_grid(song_id, chord_list)
     tempo = clamp_tempo(song["tempo"])
     style = normalize_style(song["style"])
     groove = normalize_groove(song["groove"] if "groove" in song.keys() else "auto", style)
@@ -348,6 +350,7 @@ def api_render(song_id):
         pdf_path = render_pdf(ly_source, output_stem=score_stem, output_dir=render_dir)
         render_id = save_render(song_id, render_key, midi_path=midi_path, audio_path=audio["mp3"], pdf_path=pdf_path, svg_path=svg_paths[0])
         return jsonify({
+            "chords": chord_list,
             "render_id": render_id,
             "render_key": render_key,
             "audio_mode": audio_mode,

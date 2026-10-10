@@ -7,6 +7,7 @@ returns MIDI notes, validation errors, and scale material for the generator.
 from __future__ import annotations
 
 import re
+from difflib import SequenceMatcher
 from dataclasses import dataclass
 
 NOTE_MAP = {
@@ -82,7 +83,9 @@ def _dedupe_sorted(intervals: list[int]) -> list[int]:
 
 
 def parse_chord_details(symbol: str) -> tuple[ParsedChord | None, str | None]:
-    symbol = (symbol or "").strip()
+    symbol = (symbol or "").strip().replace("♭", "b").replace("♯", "#").replace("−", "-")
+    if symbol:
+        symbol = symbol[0].upper() + symbol[1:]
     if not symbol:
         return None, "Enter a chord symbol."
     if symbol in {"/", "%", "-"}:
@@ -96,6 +99,13 @@ def parse_chord_details(symbol: str) -> tuple[ParsedChord | None, str | None]:
     rest = _clean_suffix(m.group(2))
     # 6/9 chords use a slash that is not a bass note: C6/9 means C69.
     rest = rest.replace("6/9", "69")
+    rest = re.sub(r"major|Maj|MAJ", "maj", rest)
+    rest = re.sub(r"minor|Minor|MIN|min", "m", rest)
+    rest = re.sub(r"^o(?=7|$)", "dim", rest)
+    rest = rest.replace("ø7", "ø")
+    rest = re.sub(r"^(maj|M)(?=$|/)", "", rest)
+    rest = re.sub(r"Δ(?=$|/)", "maj7", rest)
+    rest = re.sub(r"^(m|-)(M|Δ)(?=7|9|11|13)", r"\1maj", rest)
     bass = None
     if "/" in rest:
         rest, bass = rest.split("/", 1)
@@ -152,7 +162,10 @@ def parse_chord_details(symbol: str) -> tuple[ParsedChord | None, str | None]:
         quality = "altered"
         rest = rest[3:]
 
-    if rest.startswith(("maj13", "M13", "Δ13")):
+    if rest.startswith(("maj11", "M11", "Δ11")):
+        intervals += [11, 14, 17]
+        rest = rest[5:] if rest.startswith("maj11") else rest[3:]
+    elif rest.startswith(("maj13", "M13", "Δ13")):
         intervals += [11, 14, 21]
         rest = rest[5:] if rest.startswith("maj13") else rest[3:]
     elif rest.startswith(("maj9", "M9", "Δ9")):
@@ -200,19 +213,26 @@ def parse_chord_details(symbol: str) -> tuple[ParsedChord | None, str | None]:
         intervals = [i for i in intervals if i not in (3, 4)]
         intervals.append(replacement)
 
-    for alt in re.findall(r"[b#][0-9]+", rest):
-        acc = -1 if alt[0] == "b" else 1
-        degree = int(alt[1:])
-        base = DEGREE_TO_INTERVAL.get(degree)
-        if base is None:
-            continue
-        candidates = {base, base - 1, base + 1}
-        intervals = [i for i in intervals if i not in candidates]
-        intervals.append(base + acc)
-
-    rest_without_alts = re.sub(r"[b#][0-9]+", "", rest)
-    if rest_without_alts:
-        return None, f"Unrecognized chord text '{rest_without_alts}'."
+    # Consume every modifier; unknown degrees must not silently validate.
+    while rest:
+        token = re.match(r"(add[b#]?|omit|no|b|#)(13|11|9|7|6|5|4|3|2|1)(?![0-9])", rest)
+        if not token:
+            if rest.startswith("+"):
+                intervals = [i for i in intervals if i != 7] + [8]
+                rest = rest[1:]
+                continue
+            return None, f"Unrecognized chord text '{rest}'."
+        kind, degree = token.group(1), int(token.group(2))
+        base = {1: 0, 3: 4, **DEGREE_TO_INTERVAL}[degree]
+        if kind in {"omit", "no"}:
+            intervals = [i for i in intervals if i % 12 != base % 12
+                         and not (degree == 3 and i == 3)]
+        elif kind.startswith("add"):
+            intervals.append(base + (1 if kind.endswith("#") else -1 if kind.endswith("b") else 0))
+        else:
+            intervals = [i for i in intervals if i != base]
+            intervals.append(base + (-1 if kind == "b" else 1))
+        rest = rest[token.end():]
 
     return ParsedChord(root=root, intervals=_dedupe_sorted(intervals), bass=bass, quality=quality), None
 
@@ -268,3 +288,32 @@ def chord_scale_notes(symbol: str, octave: int = 4) -> list[int]:
         scale = [0, 2, 4, 5, 7, 9, 11]
 
     return [root + i for i in scale]
+
+
+# Ordered candidates make typo correction deterministic, preserving recognizable
+# roots and slash basses. Valid symbols are always left untouched.
+COMMON_SUFFIXES = ("", "m", "7", "maj7", "m7", "6", "m6", "69", "m69",
+                   "9", "m9", "maj9", "11", "m11", "maj11", "13", "m13", "maj13",
+                   "dim", "dim7", "m7b5", "aug", "aug7", "sus2", "sus4",
+                   "7sus4", "9sus4", "13sus4", "5", "add9", "add11", "madd9",
+                   "mmaj7", "mmaj9", "7alt", "7b9", "7#9", "7b5", "7#5",
+                   "7b9#11", "7#9b13", "maj7#11", "13b9")
+
+
+def closest_chord_symbol(symbol: str) -> str:
+    if validate_chord_symbol(symbol)[0]:
+        return symbol
+    text = (symbol or "").strip().replace("♭", "b").replace("♯", "#")
+    match = re.match(r"^([A-Ga-g][#b]?)(.*)$", text)
+    if not match:
+        return "C"
+    root, suffix = match.groups()
+    root = root[0].upper() + root[1:]
+    bass = ""
+    slash = re.search(r"/([A-Ga-g][#b]?)$", suffix)
+    if slash:
+        bass = "/" + slash[1][0].upper() + slash[1][1:]
+        suffix = suffix[:slash.start()]
+    suffix = _clean_suffix(suffix)
+    candidate = max(COMMON_SUFFIXES, key=lambda c: SequenceMatcher(None, suffix, c).ratio())
+    return root + candidate + bass

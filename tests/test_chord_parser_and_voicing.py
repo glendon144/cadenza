@@ -55,3 +55,44 @@ def test_minor_dash_gets_minor_scale_material():
     pcs = {n % 12 for n in chord_scale_notes("C-7", octave=4)}
     assert 3 in pcs
     assert 10 in pcs
+
+
+import pytest
+from music.chord_parser import NOTE_MAP, COMMON_SUFFIXES, closest_chord_symbol, parse_chord_details
+
+
+@pytest.mark.parametrize("root", list(NOTE_MAP))
+@pytest.mark.parametrize("suffix", COMMON_SUFFIXES + (
+    "Maj7", "major7", "minor7", "min7", "mM7", "mΔ9", "Δ", "M", "maj",
+    "add#11", "addb9", "o7", "ø7", "7+", "7(b9,#9)", "add2", "add4", "add13", "7no3", "9omit5", "6/9",
+))
+@pytest.mark.parametrize("bass", ["", "/Eb"])
+def test_supported_chord_families(root, suffix, bass):
+    symbol = root + suffix + bass
+    assert_valid(symbol)
+    assert parse_chord(symbol)
+    assert closest_chord_symbol(symbol) == symbol
+
+
+@pytest.mark.parametrize("symbol, intervals", [
+    ("CΔ", [0, 4, 7, 11]), ("Cadd#11", [0, 4, 7, 18]),
+    ("Cadd9", [0, 4, 7, 14]), ("CmM7", [0, 3, 7, 11]),
+    ("Cmaj11", [0, 4, 7, 11, 14, 17]), ("C7(b9,#9)", [0, 4, 7, 10, 13, 15]),
+    ("C7no3", [0, 7, 10]), ("Cø7", [0, 3, 6, 10]),
+    ("Cminor7", [0, 3, 7, 10]),
+])
+def test_chord_tones(symbol, intervals):
+    parsed, error = parse_chord_details(symbol)
+    assert error is None
+    assert parsed.intervals == intervals
+
+
+@pytest.mark.parametrize("symbol", ["C7b99", "H7", "Cwat", "C/foo"])
+def test_invalid_symbols_get_playable_substitution(symbol):
+    assert not validate_chord_symbol(symbol)[0]
+    assert parse_chord(closest_chord_symbol(symbol))
+
+
+def test_unicode_accidentals():
+    assert parse_chord("B♭m7") == parse_chord("Bbm7")
+    assert parse_chord("F♯7/A♯") == parse_chord("F#7/A#")

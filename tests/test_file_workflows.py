@@ -74,14 +74,14 @@ def test_biab_export_returns_musicxml_for_current_project(client):
     assert split_root.find("./part/measure[@number='1']/harmony[offset='8']") is not None
 
 
-def test_biab_export_rejects_invalid_chords(client):
+def test_biab_export_substitutes_invalid_chords(client):
     response = client.post(
         "/api/project/export-musicxml",
         json={**PROJECT, "chords": [{"measure": 0, "beat": 0, "symbol": "not-a-chord"}]},
     )
 
-    assert response.status_code == 400
-    assert response.get_json()["invalid_chords"]
+    assert response.status_code == 200
+    assert ET.fromstring(response.data).findtext("./part/measure/harmony/root/root-step") == "C"
 
 
 def test_project_import_returns_normalized_project_for_frontend(client):
@@ -120,3 +120,12 @@ def test_frontend_uses_full_project_payload_for_file_workflows():
         assert f"{field}: song{ {'title': 'Title', 'tempo': 'Tempo', 'style': 'Style', 'key_sig': 'Key'}[field] }.value" in source
     assert "scheduleMixerSave();" in source
     assert "{ mixer: state.settings.mixer }" in source
+
+
+def test_save_substitutes_typos_and_returns_corrected_grid(client):
+    song_id = client.post("/api/songs", json={}).get_json()["id"]
+    chords = [{"measure": 0, "beat": 0, "symbol": "F#ma7/A#", "duration": 4}]
+    response = client.put(f"/api/songs/{song_id}", json={"chords": chords})
+    assert response.status_code == 200
+    assert response.get_json()["chords"][0]["symbol"] == "F#maj7/A#"
+    assert client.get(f"/api/songs/{song_id}").get_json()["chords"][0]["symbol"] == "F#maj7/A#"

@@ -234,7 +234,24 @@ async function apiPut(url, body) {
 
 async function parseApiResponse(res) {
   const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(data.error || `Request failed (${res.status})`);
+  if (!res.ok) {
+    if (data.invalid_chords) showInvalidChords(data.invalid_chords);
+    throw new Error(data.error || `Request failed (${res.status})`);
+  }
+  if (Array.isArray(data.chords)) {
+    const changes = [];
+    for (const chord of data.chords) {
+      const key = `${chord.measure}-${chord.beat}`;
+      if (state.chords[key] && state.chords[key] !== chord.symbol) {
+        changes.push(`${state.chords[key]} → ${chord.symbol}`);
+        state.chords[key] = chord.symbol;
+      }
+    }
+    state.invalidChords = {};
+    renderGrid();
+    if (changes.length) setStatus(`Substituted: ${changes.join(", ")}`);
+    data.chord_substitutions = changes;
+  }
   return data;
 }
 
@@ -283,10 +300,10 @@ async function saveSong() {
     chords:  buildChordPayload(),
   };
   try {
-    await apiPut(`/api/songs/${state.songId}`, payload);
+    const result = await apiPut(`/api/songs/${state.songId}`, payload);
     const item = document.querySelector(`.song-item[data-id="${state.songId}"]`);
     if (item) item.querySelector(".song-title").textContent = payload.title || "Untitled";
-    setStatus("Saved ✓");
+    setStatus(result.chord_substitutions?.length ? `Saved; substituted: ${result.chord_substitutions.join(", ")}` : "Saved ✓");
   } catch (err) {
     setStatus(`Save failed: ${err.message}`);
     throw err;
